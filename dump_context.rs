@@ -14,6 +14,7 @@ fn main() {
     let include_ext = [
         "rs", "toml", "md", "json", "yaml", "yml",
         "js", "ts", "tsx", "jsx", "html", "css", "sql", "sh",
+        "ron", "wgsl", "txt", "xml", "lock",
     ];
 
     // Папки, которые пропускаем
