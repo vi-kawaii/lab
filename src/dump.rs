@@ -1,30 +1,20 @@
-//! ```cargo
-//! [dependencies]
-//! walkdir = "2"
-//! arboard = "3"
-//! ```
-
 use arboard::Clipboard;
 use std::fs;
 use std::path::Path;
 use walkdir::WalkDir;
 
-fn main() {
-    // Расширения, которые включаем (можно дополнить)
+pub fn run(cwd: &Path) -> Result<(), String> {
     let include_ext = [
-        "rs", "toml", "md", "json", "yaml", "yml",
-        "js", "ts", "tsx", "jsx", "html", "css", "sql", "sh",
-        "ron", "wgsl", "txt", "xml", "lock",
+        "rs", "toml", "md", "json", "yaml", "yml", "js", "ts", "tsx", "jsx", "html", "css",
+        "sql", "sh", "ron", "wgsl", "txt", "xml", "lock",
     ];
-
-    // Папки, которые пропускаем
     let skip_dirs = ["target", ".git", "node_modules", "dist", "build", ".idea"];
 
     let mut output = String::new();
 
-    // 1. Дерево проекта
+    // 1. Дерево
     output.push_str("=== PROJECT TREE ===\n");
-    for entry in WalkDir::new(".")
+    for entry in WalkDir::new(cwd)
         .into_iter()
         .filter_entry(|e| {
             let name = e.file_name().to_string_lossy();
@@ -35,12 +25,12 @@ fn main() {
         let depth = entry.depth();
         let name = entry.file_name().to_string_lossy();
         let prefix = "  ".repeat(depth);
-        output.push_str(&format!("{}{}\n", prefix, name));
+        output.push_str(&format!("{prefix}{name}\n"));
     }
 
-    // 2. Содержимое файлов
+    // 2. Содержимое
     output.push_str("\n=== FILE CONTENTS ===\n");
-    for entry in WalkDir::new(".")
+    for entry in WalkDir::new(cwd)
         .into_iter()
         .filter_entry(|e| {
             let name = e.file_name().to_string_lossy();
@@ -51,17 +41,13 @@ fn main() {
         if !entry.file_type().is_file() {
             continue;
         }
-
         let path = entry.path();
         let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
-
         if !include_ext.contains(&ext) {
             continue;
         }
-
-        let display_path = path.strip_prefix("./").unwrap_or(path);
-        output.push_str(&format!("\n── {} ──\n", display_path.display()));
-
+        let display = path.strip_prefix(cwd).unwrap_or(path);
+        output.push_str(&format!("\n── {} ──\n", display.display()));
         match fs::read_to_string(path) {
             Ok(content) => output.push_str(&content),
             Err(_) => output.push_str("<не удалось прочитать файл>\n"),
@@ -69,16 +55,15 @@ fn main() {
         output.push('\n');
     }
 
-    // 3. Копируем в буфер
+    // 3. В буфер
     match Clipboard::new() {
-        Ok(mut clipboard) => match clipboard.set_text(output.clone()) {
+        Ok(mut cb) => match cb.set_text(output.clone()) {
             Ok(_) => {
-                let size_kb = output.len() / 1024;
-                println!("✅ Контекст скопирован в буфер ({} KB)", size_kb);
-                println!("   Файлов включено, дерево и содержимое готово к вставке.");
+                println!("✅ Контекст скопирован в буфер ({} KB)", output.len() / 1024);
+                Ok(())
             }
-            Err(e) => eprintln!("❌ Не могу записать в буфер: {}", e),
+            Err(e) => Err(format!("не могу записать в буфер: {e}")),
         },
-        Err(e) => eprintln!("❌ Нет доступа к буферу: {}", e),
+        Err(e) => Err(format!("нет доступа к буферу: {e}")),
     }
 }
